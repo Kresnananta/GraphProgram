@@ -8,7 +8,7 @@ canvas_h = 600
 pin_node_rad = 10
 node_rad = 5
 pin_hit_rad = pin_node_rad + 5
-default_hit_rad = node_rad + 5
+default_hit_rad = node_rad + 2
 
 class App(tk.Tk):
     def __init__(self):
@@ -32,7 +32,7 @@ class App(tk.Tk):
         tk.Button(bot_frame, text='Connect Nodes', command=self.set_connect_mode).pack(side='left')
         tk.Button(bot_frame, text='Remove Node', command=self.set_remove_mode).pack(side='left')
 
-        self.info = tk.Label(bot_frame, text='Mode: add | Nodes: 0', bg="#222", fg="white")
+        self.info = tk.Label(bot_frame, text='Mode: default | Nodes: 0', bg="#222", fg="white")
         self.info.pack(side='left', padx=10)
 
         self.canvas.bind('<Button-1>', self.on_click)
@@ -67,7 +67,10 @@ class App(tk.Tk):
         self.update_info()
 
     def update_info(self):
-        self.info.config(text=f'Mode: {self.mode} | Nodes: {len(self.nodes)}')
+        if self.mode == 'connect' and self.selected_node:
+            self.info.config(text=f'Mode: {self.mode} (selected) | Nodes: {len(self.nodes)}')
+        else:
+            self.info.config(text=f'Mode: {self.mode} | Nodes: {len(self.nodes)}')
 
     def on_click(self, event):
         if self.mode == 'pin':
@@ -142,6 +145,6 @@ class App(tk.Tk):
 if __name__ == '__main__':
     App().mainloop()
 
-    #tugas: node yang ada namanya -> node pin , ini pake button
-    #tugas: tambahin node dummy, ini default
-    #tugas: load peta untuk jadi background, lalu disimpan konfigurasinya
+    #tugas: node yang ada namanya -> node pin , ini pake button (done)
+    #tugas: tambahin node dummy, ini default (done)
+    #tugas: load peta untuk jadi background, lalu disimpan konfigurasinya (done)
