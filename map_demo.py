@@ -1,6 +1,7 @@
 import tkinter as tk
 import os
-import json
+import math
+import heapq
 from tkinter import simpledialog, messagebox
 from PIL import Image, ImageTk
 
@@ -16,31 +17,32 @@ class App(tk.Tk):
         super().__init__()
         self.title('Sambung sambung Node')
         self.geometry(f'{canvas_w}x{canvas_h+80}')
-
-        self.default_nodes = []
-        self.pin_nodes = []
-        self.default_connection = []
-        self.pin_connection = []
-
+        self.nodes = []
+        self.connections = []
         self.selected_node = None
         self.mode = 'default'
-        self.config_mode = False
         self.bg_image = None
         self.path_lines = []
 
         self.canvas = tk.Canvas(self, width=canvas_w, height=canvas_h, bg='white')
         self.canvas.pack(side='top', fill='both', expand=True)
 
-        self.bot_frame = tk.Frame(self, bg='lightgrey')
-        self.bot_frame.pack(side='bottom', fill='x')
+        bot_frame = tk.Frame(self, bg='lightgrey')
+        bot_frame.pack(side='bottom', fill='x')
 
-        self.info = tk.Label(self.bot_frame, text='Mode: Normal', bg="#222", fg="white")
+        tk.Button(bot_frame, text='Pin Node', command=self.set_pin_mode).pack(side='left')
+        tk.Button(bot_frame, text='Default Node', command=self.set_default_mode).pack(side='left')
+        tk.Button(bot_frame, text='Connect Nodes', command=self.set_connect_mode).pack(side='left')
+        tk.Button(bot_frame, text='Remove Node', command=self.set_remove_mode).pack(side='left')
+        tk.Button(bot_frame, text='Djikstra', command=self.set_djikstra_mode).pack(side='left')
+
+        self.info = tk.Label(bot_frame, text='Mode: default | Nodes: 0 | Koneksi: 0', bg="#222", fg="white")
         self.info.pack(side='left', padx=10)
 
         self.canvas.bind('<Button-1>', self.on_click)
 
         self.load_bg('img/bg_map.png')
-        self.create_main_buttons()
+        self.update_info()
 
     def load_bg(self, file_path):
         if not os.path.exists(file_path):
@@ -52,67 +54,14 @@ class App(tk.Tk):
         self.bg_image = ImageTk.PhotoImage(image)
         self.canvas.create_image(0, 0, image=self.bg_image, anchor='nw')
 
-    def create_main_buttons(self):
-        for items in self.bot_frame.winfo_children():
-            if isinstance(items, tk.Button):
-                items.destroy()
-        
-        tk.Button(self.bot_frame, text='Pin Node', command=self.set_pin_mode).pack(side='left')
-        tk.Button(self.bot_frame, text='Connect Nodes', command=self.set_connect_mode).pack(side='left')
-        tk.Button(self.bot_frame, text='Remove Node', command=self.set_remove_mode).pack(side='left')
-        tk.Button(self.bot_frame, text='Config Mode', command=self.enter_config_mode).pack(side='left')
-
-    def create_config_buttons(self):
-        for items in self.bot_frame.winfo_children():
-            if isinstance(items, tk.Button):
-                items.destroy()
-        
-        tk.Button(self.bot_frame, text='Add Node', command=self.set_default_mode).pack(side='left')
-        tk.Button(self.bot_frame, text='Remove Node', command=self.set_remove_mode).pack(side='left')
-        tk.Button(self.bot_frame, text='Save Config', command=self.save_config).pack(side='left')
-        tk.Button(self.bot_frame, text='Back', command=self.exit_config_mode).pack(side='left')
-
-    def enter_config_mode(self):
-        self.config_mode = True
-        self.mode = 'default'
-        self.create_config_buttons()
-        self.update_info()
-        print("Config mode")
-
-    def exit_config_mode(self):
-        self.config_mode = False
-        self.mode = 'default'
-        self.create_main_buttons()
-        self.update_info()
-        print("Exit config mode")
-
-    def save_config(self):
-        config = {
-            'default_nodes': self.default_nodes,
-            'default_connections': self.default_connection,
-        }
-
-        try:
-            with open('config.json', 'w') as f:
-                json.dump(config, f, indent=4)
-            messagebox.showinfo("Success", "Konfigurasi berhasil disimpan ke config.json")
-            print("Config saved to config.json")
-            self.clear_canvas()
-            self.exit_config_mode()
-        except Exception as e:
-            messagebox.showerror("Error", f"Gagal menyimpan config: {str(e)}")
-            print(f"Error saving config: {e}")
-
-    def clear_canvas(self):
-        self.canvas.delete("all")
-        self.load_bg('img/bg_map.png')
-
     def set_pin_mode(self):
         self.mode = 'pin'
+        self.selected_node = None
         self.update_info()
 
     def set_default_mode(self):
         self.mode = 'default'
+        self.selected_node = None
         self.update_info()
 
     def set_connect_mode(self):
@@ -122,34 +71,29 @@ class App(tk.Tk):
     
     def set_remove_mode(self):
         self.mode = 'remove'
+        self.selected_node = None
+        self.update_info()
+    
+    def set_djikstra_mode(self):
+        self.mode = 'djikstra'
+        self.selected_node = None
+        self.clear_path_lines()
         self.update_info()
 
-    # def set_djikstra_mode(self):
-    #     self.mode = 'djikstra'
-    #     self.selected_node = None
-    #     self.update_info()
-
     def update_info(self):
-        default_count = len(self.default_nodes)
-        pin_count = len(self.pin_nodes)
-        self.info.config(text=f'Mode: {self.mode} | Default: {default_count} | Pin: {pin_count} | Config: {self.config_mode}')
+        self.info.config(text=f'Mode: {self.mode} | Nodes: {len(self.nodes)} | Koneksi: {len(self.connections)}')
 
     def on_click(self, event):
-        if self.config_mode:
-            if self.mode == 'default':
-                self.default_node(event.x, event.y)
-            elif self.mode == 'remove':
-                self.remove_node(event.x, event.y)
-        else:
-            if self.mode == 'pin':
-                self.pin_node(event.x, event.y)
-            elif self.mode == 'connect':
-                self.connect_node(event.x, event.y)
-            elif self.mode == 'remove':
-                self.remove_node(event.x, event.y)
-            else:
-                pass
-            
+        if self.mode == 'pin':
+            self.pin_node(event.x, event.y)
+        elif self.mode == 'default':
+            self.default_node(event.x, event.y)
+        elif self.mode == 'remove':
+            self.remove_node(event.x, event.y)
+        elif self.mode == 'connect':
+            self.connect_node(event.x, event.y)
+        elif self.mode == 'djikstra':
+            self.select_djikstra(event.x, event.y)
         self.update_info()
 
     def pin_node(self, x, y):
@@ -160,16 +104,8 @@ class App(tk.Tk):
             x - pin_node_rad, y - pin_node_rad, x + pin_node_rad, y + pin_node_rad,
             fill='green', outline='black', width=3
         )
-        text_id = self.canvas.create_text(x, y - 30,
-                                            text=name, fill='black', font=('Arial', 12, 'bold'))
-        self.pin_nodes.append({
-            'x': x,
-            'y': y,
-            'name': name,
-            'node_id': node_id,
-            'text_id': text_id
-        })
-        print(f"Pin node created at ({x}, {y})")
+        text_id = self.canvas.create_text(x, y - 30, text=name, fill='black', font=('Arial', 12, 'bold'))
+        self.nodes.append(({'x': x, 'y': y, 'type' : 'pin', 'name': name, 'node_id': node_id, 'text_id': text_id}))
 
     def default_node(self, x, y):
         
@@ -177,85 +113,171 @@ class App(tk.Tk):
             x - node_rad, y - node_rad, x + node_rad, y + node_rad,
             fill='lightblue', outline='black', width=1.5
         )
-        self.default_nodes.append({
-            'x': x,
-            'y': y,
-            'node_id': node_id
-        })
-        print(f"Default node created at ({x}, {y})")
+        self.nodes.append({'x': x, 'y': y, 'type': 'default', 'node_id': node_id})
     
     def connect_node(self, x, y):
-        hit_node = None
-        node_type = None
-        
-        # Check if click hits any pin node
-        for i, node in enumerate(self.pin_nodes):
-            px, py = node['x'], node['y']
-            if (x - px)**2 + (y - py)**2 <= pin_hit_rad**2:
-                hit_node = (i, node)
-                node_type = 'pin'
-                break
-        
-        if hit_node is None:
-            return
-        
-        # First node selected
+        clicked_node = self.find_node_index(x, y)
+        if clicked_node is None: return
+
         if self.selected_node is None:
-            self.selected_node = {
-                'index': hit_node[0],
-                'type': node_type,
-                'node': hit_node[1],
-                'coords': (hit_node[1]['x'], hit_node[1]['y'])
-            }
-            print(f"Selected pin node: {hit_node[1]['name']}")
-            return
-        
-        # Second node selected - create connection
-        x1, y1 = self.selected_node['coords']
-        x2, y2 = hit_node[1]['x'], hit_node[1]['y']
-        
-        # Draw line
-        line_id = self.canvas.create_line(x1, y1, x2, y2, fill='black', width=2)
-        
-        # Store connection
-        connection = {
-            'from': self.selected_node,
-            'to': {
-                'index': hit_node[0],
-                'type': node_type,
-                'node': hit_node[1],
-                'coords': (hit_node[1]['x'], hit_node[1]['y'])
-            },
-            'line_id': line_id
-        }
-        
-        self.pin_connection.append(connection)
-        print(f"Connected pin nodes: {self.selected_node['node']['name']} -> {hit_node[1]['name']}")
-        
-        self.selected_node = None
+            self.selected_node = clicked_node
+            print(f'Node dipilih: {clicked_node} ({self.nodes[clicked_node].get("name", "default")})')
+        else:
+            if self.selected_node == clicked_node:
+                messagebox.showwarning('Peringatan', 'Ga bisa connect ke node yang sama oi')
+                self.selected_node = None
+                return
+            
+            a, b = self.selected_node, clicked_node
+            if (a, b) in self.connections or (b, a) in self.connections:
+                messagebox.showwarning('Peringatan', 'Udah connect bro')
+                self.selected_node = None
+                return
+            self.connections.append((a,b))
+            x1, y1 = self.nodes[a]['x'], self.nodes[a]['y']
+            x2, y2 = self.nodes[b]['x'], self.nodes[b]['y']
+            self.canvas.create_line(x1, y1, x2, y2, fill='black', width=2)
+            print(f'Terkoneksi: {a} -> {b}')
+            self.selected_node = None
     
     def remove_node(self, x, y):
-        if self.config_mode:
-            for i, node in enumerate(self.default_nodes):
-                px, py = node['x'], node['y']
-                if (x - px)**2 + (y - py)**2 <= default_hit_rad**2:
-                    self.canvas.delete(node['node_id'])
-                    self.default_nodes.pop(i)
-                    print(f"Default node removed at ({px}, {py})")
-                    return
-        else:
-            for i, node in enumerate(self.pin_nodes):
-                px, py = node['x'], node['y']
-                if (x - px)**2 + (y - py)**2 <= pin_hit_rad**2:
-                    self.canvas.delete(node['node_id'])
-                    self.canvas.delete(node['text_id'])
-                    self.pin_nodes.pop(i)
-                    print(f"Pin node removed: {node['name']}")
-                    return
+        index = self.find_node_index(x, y)
+        if index is None: return
 
+        node = self.nodes[index]
+        try:
+            self.canvas.delete(node['node_id'])
+        except Exception: pass
+
+        if 'text_id' in node:
+            try:
+                self.canvas.delete(node['text_id'])
+            except Exception: pass
+
+        new_connections = []
+        for a, b in self.connections:
+            if a == index or b == index:
+                continue
+            new_a = a - 1 if a > index else a
+            new_b = b - 1 if b > index else b
+            new_connections.append((new_a, new_b))
+            self.nodes.pop(index)
+            self.redraw_all()
+
+    def find_node_index(self, x, y):
+        for i, node in enumerate(self.nodes):
+            nx, ny = node['x'], node['y']
+            hit_rad = pin_hit_rad if node['type'] == 'pin' else default_hit_rad
+            if (x - nx)**2 + (y - ny)**2 <= hit_rad**2:
+                return i
+        return None
+    
+    def redraw_all(self):
+        self.canvas.delete('all')
+        if self.bg_image:
+            self.canvas.create_image(0, 0, image=self.bg_image, anchor='nw')
+
+        for a, b in self.connections:
+            x1, y1 = self.nodes[a]['x'], self.nodes[a]['y']
+            x2, y2 = self.nodes[b]['x'], self.nodes[b]['y']
+            self.canvas.create_line(x1, y1, x2, y2, fill='black', width=2)
+
+        for node in self.nodes:
+            x, y = node['x'], node['y']
+            if node['type'] == 'pin':
+                node_id = self.canvas.create_oval(
+                    x - pin_node_rad, y - pin_node_rad, x + pin_node_rad, y + pin_node_rad,
+                    fill='green', outline='black', width=3
+                )
+                text_id = self.canvas.create_text(x, y - 30, text=node['name'], fill='black', font=('Arial', 12, 'bold'))
+                node['node_id'] = node_id
+                node['text_id'] = text_id
+            else:
+                node_id = self.canvas.create_oval(
+                    x - node_rad, y - node_rad, x + node_rad, y + node_rad,
+                    fill='lightblue', outline='black', width=1.5
+                )
+                node['node_id'] = node_id
+
+    def select_djikstra(self, x, y):
+        index = self.find_node_index(x, y)
+        if index is None: return
+
+        if self.selected_node is None:
+            self.selected_node = index
+            print(f'Node awal djikstra: {index} ({self.nodes[index].get("name", "default")})')
+            self.update_info()
+            return
+            
+        start_index = self.selected_node
+        end_index = index
+        if start_index == end_index:
+            messagebox.showwarning('Peringatan', 'Node awal dan akhir jangan sama')
+            self.selected_node = None
+            return
+            
+        self.clear_path_lines()
+        graph = self.build_graph()
+        dist, prev = self.run_djikstra(graph, start_index)
+        if end_index not in dist or dist[end_index] == float('inf'):
+            messagebox.showwarning('Peringatan', 'Tidak ada jalur antara kedua node')
+            self.selected_node = None
+            return
+            
+        path = []
+        cur = end_index
+        while cur is not None:
+            path.append(cur)
+            cur = prev.get(cur)
+        path.reverse()
+
+        for i in range(len(path)-1):
+            a, b = path[i], path[i+1]
+            x1, y1 = self.nodes[a]['x'], self.nodes[a]['y']
+            x2, y2 = self.nodes[b]['x'], self.nodes[b]['y']
+            line_id = self.canvas.create_line(x1, y1, x2, y2, fill='lightgreen', width=4)
+            self.path_lines.append(line_id)
+
+        names = [self.nodes[i].get('name', f'node{i}') for i in path]
+        messagebox.showinfo('Djikstra', f'Jalur terpendek: {" -> ".join(names)}\nJarak: {dist[end_index]:.2f}')
+        self.selected_node = None
+        self.update_info()
+
+    def clear_path_lines(self):
+        for line_id in self.path_lines:
+            try:
+                self.canvas.delete(line_id)
+            except Exception:
+                pass
+        self.path_lines = []
+
+    def build_graph(self):
+        g = {i: [] for i in range(len(self.nodes))}
+        for a, b in self.connections:
+            x1, y1 = self.nodes[a]['x'], self.nodes[a]['y']
+            x2, y2 = self.nodes[b]['x'], self.nodes[b]['y']
+            w = math.hypot(x1-x2, y1-y2)
+            g[a].append((b, w))
+            g[b].append((a, w))
+        return g
+    
+    def run_djikstra(self, graph, start):
+        dist = {node: float('inf') for node in graph}
+        prev = {node: None for node in graph}
+        dist[start] = 0
+        heap = [(0, start)]
+        while heap:
+            d, u = heapq.heappop(heap)
+            if d > dist[u]:
+                continue
+            for v, w in graph[u]:
+                nd = d + w
+                if nd < dist[v]:
+                    dist[v] = nd
+                    prev[v] = u
+                    heapq.heappush(heap, (nd, v))
+        return dist, prev
 if __name__ == '__main__':
     App().mainloop()
 
-    #tugas: node yang ada namanya -> node pin , ini pake button (done)
-    #tugas: tambahin node dummy, ini default (done)
-    #tugas: load peta untuk jadi background, lalu disimpan konfigurasinya (done)
+    #tugas: tambahin algoritma djikstra buat nyari jalur terpendek antara dua node yang dipilih (done)
