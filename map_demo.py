@@ -18,7 +18,7 @@ config_path = "config.json"
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('Sambung sambung Node')
+        self.title('MapGraph')
         self.geometry(f'{canvas_w}x{canvas_h+80}')
         self.nodes = []
         self.connections = []
@@ -46,7 +46,7 @@ class App(tk.Tk):
 
         self.canvas.bind('<Button-1>', self.on_click)
 
-        self.load_bg('img/bg_map2.png')
+        self.load_bg('img/bg_map2.png') # <- you can change this with your own map
 
         self.update_info()
 
